@@ -13,7 +13,7 @@ import argparse                                 # To parse command line argument
 from geopy.geocoders import Nominatim           # Get GeoCode from text address
 from geopy.distance import geodesic             # Mesure distances
 import pandas as pd                             # Read CSV file
-from staticmap import StaticMap, CircleMarker   # Used to generate a map from OpenStreetMap database
+from staticmap import *                         # Used to generate a map from OpenStreetMap database
 from PIL import Image                           # Used to display a image file
 import pickle                                   # Used to load/save context an speedup developpement
 
@@ -43,6 +43,8 @@ class AmapMember:
         self.people = []
         self.address = ""
         self.coords = None
+        self.color = "blue"
+        self.shape = "circle"
 
     def set_id(self, id):
         self.id = id
@@ -82,6 +84,16 @@ class AmapMember:
     # Build a nicec string with address related informations
     def get_display_address(self):
         return "{0}, {1}, {2}".format(self.address, self.city, self.postalCode)
+
+    def set_marker(self, color, shape):
+        self.color = color
+        self.shape = shape
+
+    def get_color(self):
+        return self.color
+
+    def get_shape(self):
+        return self.shape
 
     # Return the (lat, lon) pin point location corresponding to the address
     def req_map_position(self):
@@ -133,22 +145,74 @@ class AmapMember:
 
 class MapGenerator:
 
+    # CONSTANTS
+    MARKER_OUTLINE_COLOR = "white"
+
     # Prepare a new map
     def __init__(self, zoomLevel = 5, mapSize=(1920, 1080)):
         # Get map base image
         self.zoomLevel = zoomLevel
         self.map = StaticMap(mapSize[0], mapSize[1], url_template='http://a.tile.osm.org/{z}/{x}/{y}.png')
 
-    def add_marker(self, markerPos, color="blue"):
+    def add_marker(self, markerPos, color="blue", shape="circle"):
         # Ignore bad positions
         if (markerPos == None):
             return
 
-        markerOutline = CircleMarker(markerPos, 'white', 18)
-        marker = CircleMarker(markerPos, color, 12)
+        if (shape == "circle"):
+            markerOutline = CircleMarker(markerPos, self.MARKER_OUTLINE_COLOR, 18)
+            marker = CircleMarker(markerPos, color, 12)
 
-        self.map.add_marker(markerOutline)
-        self.map.add_marker(marker)
+            self.map.add_marker(markerOutline)
+            self.map.add_marker(marker)
+
+        elif (shape == "rectangle") or (shape == "triangle"):
+            # Those shapes are handled with polygons
+
+            # There is the outline and the inside to draw
+            for isInside in range(0, 2):
+
+                # The ratio between latitude and longitude is not 1
+                latFactor = 0.0001 * (4 - isInside * 1)
+                if (shape == "rectangle"):
+                    longFactor = 0.0001 * (3 - isInside * 1)
+                else:
+                    longFactor = 0.0001 * (5 - isInside * 1)
+
+                # Compute polygon points
+                longWest = markerPos[0] - longFactor
+                longEast = markerPos[0] + longFactor
+                latNorth = markerPos[1] + latFactor
+                latSouth = markerPos[1] - latFactor
+
+                if (shape == "rectangle"):
+                    polyCoords = [
+                        [longWest, latNorth],
+                        [longWest, latSouth],
+                        [longEast, latSouth],
+                        [longEast, latNorth]
+                    ]
+                elif (shape == "triangle"):
+                    polyCoords = [
+                        [markerPos[0], latNorth],
+                        [longWest, latSouth],
+                        [longEast, latSouth]
+                    ]
+
+                # Choose color
+                if (isInside):
+                    polyColor = color
+                else:
+                    polyColor = self.MARKER_OUTLINE_COLOR
+
+                # Add the new marker
+                marker = Polygon(polyCoords, polyColor, "white")
+                self.map.add_polygon(marker)
+        else:
+            logger.error("Unknown shape for marker: \"{0}\"".format(shape))
+            return
+
+
 
     # Save map to file
     def save(self, mapFileName):
@@ -175,8 +239,8 @@ class Amaping:
     DEFAULT_CSV_FILENAME = 'amap_data.csv'
     DEFAULT_CSV_SEPARATOR = ';'
     DEFAULT_OUTPUT_MAP_NAME = 'map.png'
-    DEFAULT_MAP_ZOOM_LEVEL = 15
-    DEFAULT_MAP_SIZE = "1920x1080"
+    DEFAULT_MAP_ZOOM_LEVEL = 16
+    DEFAULT_MAP_SIZE = "4080x4080"
     AMAP_ADDRESS = "Salle Brama, Avenue Sainte-Marie"
     AMAP_CITY = "Talence"
     AMAP_POSTAL_CODE = "33400"
@@ -236,16 +300,25 @@ class Amaping:
         self.amapMemberArray = pickle.load(f)
         return 0
 
+    def add_image_footer(self, imgPath, footerHeight):
+        image = Image.open(imgPath)
+
+        width, height = image.size
+
+        result = Image.new(image.mode, (width, height + footerHeight), 0xFFFFFFFF)
+        result.paste(image, (0, 0))
+        result.save(imgPath + ".jpeg")
+
     def run(self):
         # Load CSV file
         data = pd.read_csv(self.args["csvFilename"], sep=self.args["csvSeparator"], header=0)
 
         # Get AMAP address
-        amap = AmapMember()
-        amap.set_address(self.AMAP_ADDRESS)
-        amap.set_city(self.AMAP_CITY)
-        amap.set_postal_code(self.AMAP_POSTAL_CODE)
-        if (amap.req_map_position() == None):
+        salleBrama = AmapMember()
+        salleBrama.set_address(self.AMAP_ADDRESS)
+        salleBrama.set_city(self.AMAP_CITY)
+        salleBrama.set_postal_code(self.AMAP_POSTAL_CODE)
+        if (salleBrama.req_map_position() == None):
             raise RuntimeError("Unable to find AMAP address: \"{0}\"".format(amap.get_display_address()))
 
         # Clear output array
@@ -318,14 +391,39 @@ class Amaping:
         else:
             logger.info("Using cached context file")
 
+        # Add Salle Brama to the member list in order to be drawn as all other members
+        self.amapMemberArray.append(salleBrama)
+
+        # Generate colors
+
+        # Define color and shape for each members
+        colorIndex = 0
+        shapeIndex = 0
+        markerColors = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "magenta"]
+        markerShapes = ["circle", "rectangle", "triangle"]
+        for member in self.amapMemberArray:
+            member.set_marker(markerColors[colorIndex], markerShapes[shapeIndex])
+
+            # Move on
+            # Use next color
+            if (colorIndex < len(markerColors) - 1):
+                colorIndex += 1
+            else:
+                colorIndex = 0
+                # Use next shape when all color have been used
+                if (shapeIndex < len(markerShapes) - 1):
+                    shapeIndex += 1
+                else:
+                    shapeIndex = 0
+                    logger.warning("All Color/Shape combo have been used !")
+
         # Genarate map
         mapSize = tuple(map(int, self.args["mapSize"].split('x')))
         mapGen = MapGenerator(zoomLevel=self.args["zoomLevel"], mapSize=mapSize)
 
         # Add markers
-        mapGen.add_marker(amap.get_map_position(), color='red')
         for member in self.amapMemberArray:
-            mapGen.add_marker(member.get_map_position())
+            mapGen.add_marker(member.get_map_position(), member.get_color(), member.get_shape())
         mapGen.save(self.args["mapFilename"])
 
         # display the map
