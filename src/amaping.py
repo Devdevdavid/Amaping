@@ -15,6 +15,8 @@ from geopy.distance import geodesic             # Mesure distances
 import pandas as pd                             # Read CSV file
 from staticmap import *                         # Used to generate a map from OpenStreetMap database
 from PIL import Image                           # Used to display a image file
+from PIL import ImageDraw                       # Used to draw text and forms on images
+from PIL import ImageFont                       # Used to access text fonts
 import pickle                                   # Used to load/save context an speedup developpement
 
 # Constants
@@ -33,6 +35,109 @@ def _isset(value):
         return False
     else:
         return True
+
+class Painter:
+
+    MAX_SIDEBAR_ROW = 64
+
+    def __init__(self, imgPath=None):
+        if (imgPath == None):
+            self.imgPath = ""
+            self.img = None
+        else:
+            self.open(imgPath)
+
+        self.sideBarRow = 0
+        self.sideBarWidth = 0
+        self.sideBarFont = None
+
+    def open(self, imgPath):
+        self.imgPath = imgPath
+        self.img = Image.open(imgPath)
+        self.artist = ImageDraw.Draw(self.img)
+
+    def show(self):
+        self.img.show()
+
+    def save(self, path=None):
+        if (path == None):
+            path = self.imgPath
+
+        self.img.save(path)
+
+    def close(self):
+        self.imgPath = ""
+        self.img.close()
+
+    def add_side_bar(self, sideBarWidth, backColor=0xFFFFFFFF):
+        newImgPath = self.imgPath + ".jpeg"
+        width, height = self.img.size
+
+        result = Image.new(self.img.mode, (width + sideBarWidth, height), backColor)
+        result.paste(self.img, (sideBarWidth - 1, 0))
+        result.save(newImgPath)
+        result.close()
+
+        self.sideBarWidth = sideBarWidth
+        self.sideBarHeight = height
+        self.rowHeight = int(self.sideBarHeight / self.MAX_SIDEBAR_ROW)
+        self.yPadding = int(sideBarWidth * 0.05)
+        # [Space][marker of heigh][Space][Text]
+        self.xPadding = int(sideBarWidth * 0.01) + self.rowHeight + int(sideBarWidth * 0.01)
+        self.markerSize = self.rowHeight * 0.95
+        self.sideBarFont = ImageFont.truetype('Arial.ttf', self.rowHeight)
+
+        # Reopen file
+        self.close()
+        self.open(newImgPath)
+
+    def add_map_marker(self, markerPos, color="blue", shape="circle"):
+        pass
+
+    def add_icon_marker(self, x, y, color="blue", shape="circle"):
+        if (shape == "circle"):
+            r = self.markerSize / 2
+            self.artist.ellipse((x-r, y-r, x+r, y+r), fill=color)
+        elif (shape == "rectangle"):
+            r = self.markerSize / 2
+            self.artist.rectangle((x-r, y-r, x+r, y+r), fill=color)
+        elif (shape == "triangle"):
+            pass
+        else:
+            logger.error("Unknown shape for marker: \"{0}\"".format(shape))
+            return
+
+    def add_side_bar_marker(self, row, color="blue", shape="circle"):
+        x = self.xPadding / 2
+        y = self.yPadding + row * self.rowHeight + self.rowHeight / 2
+
+        self.add_icon_marker(x, y, color, shape)
+
+    def add_legend_name(self, row, name, color="blue", shape="circle"):
+        # Compute position
+        x = self.xPadding
+        y = self.yPadding + self.rowHeight * row
+
+        # Add Label
+        self.artist.text((x, y), name, font=self.sideBarFont, fill=0x000000)
+
+        # Add the corresponding marker
+        self.add_side_bar_marker(row, color, shape)
+
+    def add_marker(self, name, markerPos, color="blue", shape="circle"):
+        # Ignore bad positions
+        if (markerPos == None):
+            return
+
+        # Check space left
+        if (self.sideBarRow >= self.MAX_SIDEBAR_ROW):
+            logger.warning("No more space left in the side bar !")
+            return
+
+        # Add to sidebar
+        self.add_legend_name(self.sideBarRow, name, color, shape)
+        self.add_map_marker(markerPos, color, shape)
+        self.sideBarRow += 1
 
 class AmapMember:
     # =============
@@ -67,7 +172,7 @@ class AmapMember:
             displayNames.append("{0} {1}".format(name, firstname))
 
         displayString =  ", ".join(str(x) for x in displayNames)
-        displayString += " (id: {0})".format(self.id)
+        # displayString += " (id: {0})".format(self.id)
 
         return displayString
 
@@ -154,6 +259,16 @@ class MapGenerator:
         self.zoomLevel = zoomLevel
         self.map = StaticMap(mapSize[0], mapSize[1], url_template='http://a.tile.osm.org/{z}/{x}/{y}.png')
 
+    # Save map to file
+    def save(self, mapFileName):
+        self.mapFileName = mapFileName
+        logger.debug("Saving map to file \"{0}\"".format(self.mapFileName))
+
+        # Save image to file
+        image = self.map.render(zoom=self.zoomLevel)
+        image.save(self.mapFileName)
+
+
     def add_marker(self, markerPos, color="blue", shape="circle"):
         # Ignore bad positions
         if (markerPos == None):
@@ -165,7 +280,6 @@ class MapGenerator:
 
             self.map.add_marker(markerOutline)
             self.map.add_marker(marker)
-
         elif (shape == "rectangle") or (shape == "triangle"):
             # Those shapes are handled with polygons
 
@@ -211,17 +325,6 @@ class MapGenerator:
         else:
             logger.error("Unknown shape for marker: \"{0}\"".format(shape))
             return
-
-
-
-    # Save map to file
-    def save(self, mapFileName):
-        self.mapFileName = mapFileName
-        logger.debug("Saving map to file \"{0}\"".format(self.mapFileName))
-
-        # Save image to file
-        image = self.map.render(zoom=self.zoomLevel)
-        image.save(self.mapFileName)
 
     # Open last saved map
     def show(self):
@@ -299,15 +402,6 @@ class Amaping:
 
         self.amapMemberArray = pickle.load(f)
         return 0
-
-    def add_image_footer(self, imgPath, footerHeight):
-        image = Image.open(imgPath)
-
-        width, height = image.size
-
-        result = Image.new(image.mode, (width, height + footerHeight), 0xFFFFFFFF)
-        result.paste(image, (0, 0))
-        result.save(imgPath + ".jpeg")
 
     def run(self):
         # Load CSV file
@@ -421,13 +515,26 @@ class Amaping:
         mapSize = tuple(map(int, self.args["mapSize"].split('x')))
         mapGen = MapGenerator(zoomLevel=self.args["zoomLevel"], mapSize=mapSize)
 
+        # Add sidebar
+        painter = Painter(self.args["mapFilename"])
+
+        sideBarWidth = int(mapSize[0] / 3)
+        painter.add_side_bar(sideBarWidth)
+
         # Add markers
+        self.amapMemberArray = self.amapMemberArray[0:10]
+
         for member in self.amapMemberArray:
             mapGen.add_marker(member.get_map_position(), member.get_color(), member.get_shape())
-        mapGen.save(self.args["mapFilename"])
+        # mapGen.save(self.args["mapFilename"])
 
-        # display the map
-        mapGen.show()
+        for member in self.amapMemberArray:
+            painter.add_marker(member.get_display_name(), member.get_map_position(), member.get_color(), member.get_shape())
+        painter.save(self.args["mapFilename"] + ".jpg")
+
+        painter.show()
+        painter.close()
+
 
 if __name__ == '__main__':
     # Logging
