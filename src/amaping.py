@@ -40,7 +40,7 @@ class Painter:
 
     MAX_SIDEBAR_ROW = 64
 
-    def __init__(self, imgPath=None):
+    def __init__(self, imgPath=None, mapGen=None):
         if (imgPath == None):
             self.imgPath = ""
             self.img = None
@@ -50,6 +50,7 @@ class Painter:
         self.sideBarRow = 0
         self.sideBarWidth = 0
         self.sideBarFont = None
+        self.mapGen = mapGen
 
     def open(self, imgPath):
         self.imgPath = imgPath
@@ -92,6 +93,8 @@ class Painter:
         self.open(newImgPath)
 
     def add_map_marker(self, markerPos, color="blue", shape="circle"):
+        print(markerPos)
+        print(self.mapGen.lon_lat_to_px(markerPos))
         pass
 
     def add_icon_marker(self, x, y, color="blue", shape="circle"):
@@ -267,6 +270,12 @@ class MapGenerator:
         # Save image to file
         image = self.map.render(zoom=self.zoomLevel)
         image.save(self.mapFileName)
+
+    def lon_lat_to_px(self, markerPos):
+        return (
+            self.map._x_to_px(staticmap._lon_to_x(markerPos[0], self.zoomLevel)) * 2,
+            self.map._y_to_px(staticmap._lat_to_y(markerPos[1], self.zoomLevel)) * 2
+        )
 
 
     def add_marker(self, markerPos, color="blue", shape="circle"):
@@ -516,7 +525,7 @@ class Amaping:
         mapGen = MapGenerator(zoomLevel=self.args["zoomLevel"], mapSize=mapSize)
 
         # Add sidebar
-        painter = Painter(self.args["mapFilename"])
+        painter = Painter(self.args["mapFilename"], mapGen=mapGen)
 
         sideBarWidth = int(mapSize[0] / 3)
         painter.add_side_bar(sideBarWidth)
