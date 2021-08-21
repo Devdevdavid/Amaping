@@ -109,7 +109,7 @@ class Painter:
             r = r * 0.90
             self.artist.ellipse((x-r, y-r, x+r, y+r), fill=color, outline=outlineColor)
         elif (shape == "rectangle"):
-            r = r * 0.90
+            r = r * 0.80
             self.artist.rectangle((x-r, y-r, x+r, y+r), fill=color, outline=outlineColor)
         elif (shape == "triangle"):
             alpha = (2 * math.pi) / 3 / 2
@@ -119,6 +119,27 @@ class Painter:
             xLeft = x - xHalfUp
 
             self.artist.polygon([(xLeft, yUp), (x, y + r), (xRight, yUp)], fill=color, outline=outlineColor)
+        elif (shape == "croix"):
+            thick = int(r * 0.50)
+            r = r * 0.80
+            line1Pos = (x-r, y-r, x+r, y+r)
+            line2Pos = (x+r, y-r, x-r, y+r)
+            self.artist.line(line1Pos, fill=color, width=thick)
+            self.artist.line(line2Pos, fill=color, width=thick)
+        elif (shape == "etoile"):
+            picCount = 5
+            polyPoints = []
+            alpha = - math.pi / 2 # Begin at upper point
+            alphaStep = (2 * math.pi) / picCount / 2
+
+            # For each pic, add a sub pic at inferior radius
+            for i in range(0, picCount):
+                for picRadius in [r, r * 0.4]:
+                    pX = x + picRadius * math.cos(alpha)
+                    pY = y + picRadius * math.sin(alpha)
+                    polyPoints.append((pX, pY))
+                    alpha = alpha + alphaStep
+            self.artist.polygon(polyPoints, fill=color, outline=outlineColor)
         else:
             logger.error("Unknown shape for marker: \"{0}\"".format(shape))
             return
@@ -299,63 +320,6 @@ class MapGenerator:
             self.map._y_to_px(markerTilePos[1])
         )
 
-    def add_marker(self, markerPos, color="blue", shape="circle"):
-        # Ignore bad positions
-        if (markerPos == None):
-            return
-
-        if (shape == "circle"):
-            markerOutline = CircleMarker(markerPos, self.MARKER_OUTLINE_COLOR, 18)
-            marker = CircleMarker(markerPos, color, 12)
-
-            self.map.add_marker(markerOutline)
-            self.map.add_marker(marker)
-        elif (shape == "rectangle") or (shape == "triangle"):
-            # Those shapes are handled with polygons
-
-            # There is the outline and the inside to draw
-            for isInside in range(0, 2):
-
-                # The ratio between latitude and longitude is not 1
-                latFactor = 0.0001 * (4 - isInside * 1)
-                if (shape == "rectangle"):
-                    longFactor = 0.0001 * (3 - isInside * 1)
-                else:
-                    longFactor = 0.0001 * (5 - isInside * 1)
-
-                # Compute polygon points
-                longWest = markerPos[0] - longFactor
-                longEast = markerPos[0] + longFactor
-                latNorth = markerPos[1] + latFactor
-                latSouth = markerPos[1] - latFactor
-
-                if (shape == "rectangle"):
-                    polyCoords = [
-                        [longWest, latNorth],
-                        [longWest, latSouth],
-                        [longEast, latSouth],
-                        [longEast, latNorth]
-                    ]
-                elif (shape == "triangle"):
-                    polyCoords = [
-                        [markerPos[0], latNorth],
-                        [longWest, latSouth],
-                        [longEast, latSouth]
-                    ]
-
-                # Choose color
-                if (isInside):
-                    polyColor = color
-                else:
-                    polyColor = self.MARKER_OUTLINE_COLOR
-
-                # Add the new marker
-                marker = Polygon(polyCoords, polyColor, "white")
-                self.map.add_polygon(marker)
-        else:
-            logger.error("Unknown shape for marker: \"{0}\"".format(shape))
-            return
-
     # Open last saved map
     def show(self):
         im = Image.open(self.mapFileName)
@@ -525,7 +489,7 @@ class Amaping:
         colorIndex = 0
         shapeIndex = 0
         markerColors = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "magenta"]
-        markerShapes = ["triangle", "circle", "rectangle", "triangle"]
+        markerShapes = ["etoile", "triangle", "circle", "rectangle", "croix"]
         for member in self.amapMemberArray:
             member.set_marker(markerColors[colorIndex], markerShapes[shapeIndex])
 
