@@ -18,6 +18,7 @@ from PIL import Image                           # Used to display a image file
 from PIL import ImageDraw                       # Used to draw text and forms on images
 from PIL import ImageFont                       # Used to access text fonts
 import pickle                                   # Used to load/save context an speedup developpement
+import math                                     # For Pi constant
 
 # Constants
 APP_NAME = "Amaping"
@@ -92,20 +93,32 @@ class Painter:
         self.close()
         self.open(newImgPath)
 
-    def add_map_marker(self, markerPos, color="blue", shape="circle"):
-        print(markerPos)
-        print(self.mapGen.lon_lat_to_px(markerPos))
+    def add_map_marker(self, markerPos, color, shape):
+        x, y = self.mapGen.lon_lat_to_px(markerPos)
+
+        # Don't forget the side bar on the left
+        x = x + self.sideBarWidth
+        self.add_icon_marker(x, y, color, shape)
         pass
 
-    def add_icon_marker(self, x, y, color="blue", shape="circle"):
+    def add_icon_marker(self, x, y, color, shape):
+        outlineColor = "black"
+        r = self.markerSize / 2
+
         if (shape == "circle"):
-            r = self.markerSize / 2
-            self.artist.ellipse((x-r, y-r, x+r, y+r), fill=color)
+            r = r * 0.90
+            self.artist.ellipse((x-r, y-r, x+r, y+r), fill=color, outline=outlineColor)
         elif (shape == "rectangle"):
-            r = self.markerSize / 2
-            self.artist.rectangle((x-r, y-r, x+r, y+r), fill=color)
+            r = r * 0.90
+            self.artist.rectangle((x-r, y-r, x+r, y+r), fill=color, outline=outlineColor)
         elif (shape == "triangle"):
-            pass
+            alpha = (2 * math.pi) / 3 / 2
+            yUp = y - r * math.cos(alpha)
+            xHalfUp = r * math.sin(alpha)
+            xRight = x + xHalfUp
+            xLeft = x - xHalfUp
+
+            self.artist.polygon([(xLeft, yUp), (x, y + r), (xRight, yUp)], fill=color, outline=outlineColor)
         else:
             logger.error("Unknown shape for marker: \"{0}\"".format(shape))
             return
@@ -257,10 +270,16 @@ class MapGenerator:
     MARKER_OUTLINE_COLOR = "white"
 
     # Prepare a new map
-    def __init__(self, zoomLevel = 5, mapSize=(1920, 1080)):
+    def __init__(self, center, zoomLevel = 5, mapSize=(1920, 1080)):
         # Get map base image
         self.zoomLevel = zoomLevel
+        self.center = center
         self.map = StaticMap(mapSize[0], mapSize[1], url_template='http://a.tile.osm.org/{z}/{x}/{y}.png')
+
+    # Render by donwloading map from OSM
+    def render(self):
+        # Save image to file
+        self.image = self.map.render(center=self.center, zoom=self.zoomLevel)
 
     # Save map to file
     def save(self, mapFileName):
@@ -268,15 +287,17 @@ class MapGenerator:
         logger.debug("Saving map to file \"{0}\"".format(self.mapFileName))
 
         # Save image to file
-        image = self.map.render(zoom=self.zoomLevel)
-        image.save(self.mapFileName)
+        self.image.save(self.mapFileName)
 
     def lon_lat_to_px(self, markerPos):
-        return (
-            self.map._x_to_px(staticmap._lon_to_x(markerPos[0], self.zoomLevel)) * 2,
-            self.map._y_to_px(staticmap._lat_to_y(markerPos[1], self.zoomLevel)) * 2
-        )
+        xTile = staticmap._lon_to_x(markerPos[0], self.zoomLevel)
+        yTile = staticmap._lat_to_y(markerPos[1], self.zoomLevel)
+        markerTilePos = (xTile, yTile)
 
+        return (
+            self.map._x_to_px(markerTilePos[0]),
+            self.map._y_to_px(markerTilePos[1])
+        )
 
     def add_marker(self, markerPos, color="blue", shape="circle"):
         # Ignore bad positions
@@ -418,6 +439,7 @@ class Amaping:
 
         # Get AMAP address
         salleBrama = AmapMember()
+        salleBrama.add_people("Salle", "Brama")
         salleBrama.set_address(self.AMAP_ADDRESS)
         salleBrama.set_city(self.AMAP_CITY)
         salleBrama.set_postal_code(self.AMAP_POSTAL_CODE)
@@ -475,7 +497,7 @@ class Amaping:
                     continue
 
                 # Filter out member with far locations
-                if (not member.is_close_to(amap.get_map_position())):
+                if (not member.is_close_to(salleBrama.get_map_position())):
                     continue
 
                 # Add member to output array
@@ -503,7 +525,7 @@ class Amaping:
         colorIndex = 0
         shapeIndex = 0
         markerColors = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "magenta"]
-        markerShapes = ["circle", "rectangle", "triangle"]
+        markerShapes = ["triangle", "circle", "rectangle", "triangle"]
         for member in self.amapMemberArray:
             member.set_marker(markerColors[colorIndex], markerShapes[shapeIndex])
 
@@ -522,21 +544,21 @@ class Amaping:
 
         # Genarate map
         mapSize = tuple(map(int, self.args["mapSize"].split('x')))
-        mapGen = MapGenerator(zoomLevel=self.args["zoomLevel"], mapSize=mapSize)
+        mapGen = MapGenerator(
+            center=salleBrama.get_map_position(),
+            zoomLevel=self.args["zoomLevel"],
+            mapSize=mapSize
+        )
+        mapGen.render()
+        mapGen.save(self.args["mapFilename"])
 
-        # Add sidebar
+        # Reopend map with painter and sidebar
         painter = Painter(self.args["mapFilename"], mapGen=mapGen)
 
         sideBarWidth = int(mapSize[0] / 3)
         painter.add_side_bar(sideBarWidth)
 
         # Add markers
-        self.amapMemberArray = self.amapMemberArray[0:10]
-
-        for member in self.amapMemberArray:
-            mapGen.add_marker(member.get_map_position(), member.get_color(), member.get_shape())
-        # mapGen.save(self.args["mapFilename"])
-
         for member in self.amapMemberArray:
             painter.add_marker(member.get_display_name(), member.get_map_position(), member.get_color(), member.get_shape())
         painter.save(self.args["mapFilename"] + ".jpg")

@@ -1,4 +1,6 @@
 src/amap_data.csv
 src/*.png
+src/*.jp*
 .DS_Store
 *.obj
+lib
