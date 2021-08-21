@@ -126,15 +126,20 @@ class Painter:
             line2Pos = (x+r, y-r, x-r, y+r)
             self.artist.line(line1Pos, fill=color, width=thick)
             self.artist.line(line2Pos, fill=color, width=thick)
-        elif (shape == "etoile"):
-            picCount = 5
+        elif (shape == "etoile") or (shape == "soleil"):
+            if (shape == "etoile"):
+                picCount = 5
+                radiusFactor = 0.4
+            else:
+                picCount = 10
+                radiusFactor = 0.6
             polyPoints = []
             alpha = - math.pi / 2 # Begin at upper point
             alphaStep = (2 * math.pi) / picCount / 2
 
             # For each pic, add a sub pic at inferior radius
             for i in range(0, picCount):
-                for picRadius in [r, r * 0.4]:
+                for picRadius in [r, r * radiusFactor]:
                     pX = x + picRadius * math.cos(alpha)
                     pY = y + picRadius * math.sin(alpha)
                     polyPoints.append((pX, pY))
@@ -488,8 +493,8 @@ class Amaping:
         # Define color and shape for each members
         colorIndex = 0
         shapeIndex = 0
-        markerColors = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "magenta"]
-        markerShapes = ["etoile", "triangle", "circle", "rectangle", "croix"]
+        markerColors = [(255, 0, 0, 128), "orange", "yellow", "green", "cyan", "blue", "purple", "magenta"]
+        markerShapes = ["etoile", "triangle", "soleil", "circle", "rectangle", "croix"]
         for member in self.amapMemberArray:
             member.set_marker(markerColors[colorIndex], markerShapes[shapeIndex])
 
