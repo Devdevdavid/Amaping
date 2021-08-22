@@ -72,7 +72,8 @@ class Painter:
         self.imgPath = ""
         self.img.close()
 
-    def add_side_bar(self, sideBarWidth, backColor=0xFFFFFFFF):
+    def add_side_bar(self, sideBarWidth, backColor=0xFFFFFF):
+        logger.info("Adding side bar to image...")
         width, height = self.img.size
 
         # Create a new image wider, paste previous content and move to this new object
@@ -116,20 +117,20 @@ class Painter:
             xLeft = x - xHalfUp
 
             self.artist.polygon([(xLeft, yUp), (x, y + r), (xRight, yUp)], fill=color, outline=outlineColor)
-        elif (shape == "croix"):
+        elif (shape == "cross"):
             thick = int(r * 0.50)
             r = r * 0.80
             line1Pos = (x-r, y-r, x+r, y+r)
             line2Pos = (x+r, y-r, x-r, y+r)
             self.artist.line(line1Pos, fill=color, width=thick)
             self.artist.line(line2Pos, fill=color, width=thick)
-        elif (shape == "etoile") or (shape == "soleil"):
-            if (shape == "etoile"):
+        elif (shape == "star") or (shape == "sun"):
+            if (shape == "star"):
                 picCount = 5
                 radiusFactor = 0.4
             else:
                 picCount = 10
-                radiusFactor = 0.6
+                radiusFactor = 0.5
             polyPoints = []
             alpha = - math.pi / 2 # Begin at upper point
             alphaStep = (2 * math.pi) / picCount / 2
@@ -310,6 +311,7 @@ class MapGenerator:
 
     # Render by donwloading map from OSM
     def render(self):
+        logger.info("Rendering map...")
         # Save image to file
         self.image = self.map.render(center=self.center, zoom=self.zoomLevel)
 
@@ -495,16 +497,14 @@ class Amaping:
         else:
             logger.info("Using cached context file")
 
-        # Add Salle Brama to the member list in order to be drawn as all other members
-        self.amapMemberArray.append(salleBrama)
-
-        # Generate colors
+        # Prepend Salle Brama to the member list in order to be drawn as all other members
+        self.amapMemberArray.insert(0, salleBrama)
 
         # Define color and shape for each members
         colorIndex = 0
         shapeIndex = 0
-        markerColors = [(255, 0, 0, 128), "orange", "yellow", "green", "cyan", "blue", "purple", "magenta"]
-        markerShapes = ["etoile", "triangle", "soleil", "circle", "rectangle", "croix"]
+        markerColors = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "magenta"]
+        markerShapes = ["star", "triangle", "sun", "circle", "rectangle", "cross"]
         for member in self.amapMemberArray:
             member.set_marker(markerColors[colorIndex], markerShapes[shapeIndex])
 
@@ -537,12 +537,14 @@ class Amaping:
         painter.add_side_bar(sideBarWidth)
 
         # Add title
-        painter.add_legend_title("Membres de l'AMAP Pétal :")
+        painter.add_legend_title("{0} membres de l'AMAP Pétal :".format(len(self.amapMemberArray)))
 
         # Add markers
+        logger.info("Adding markers...")
         for member in self.amapMemberArray:
             painter.add_marker(member.get_display_name(), member.get_map_position(), member.get_color(), member.get_shape())
 
+        logger.info("Openning output file...")
         painter.save(self.args["mapFilename"])
         painter.show()
         painter.close()
