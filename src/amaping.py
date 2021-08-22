@@ -41,21 +41,22 @@ class Painter:
 
     MAX_SIDEBAR_ROW = 64
 
-    def __init__(self, imgPath=None, mapGen=None):
-        if (imgPath == None):
-            self.imgPath = ""
-            self.img = None
-        else:
-            self.open(imgPath)
+    def __init__(self, mapGen):
+        self.open(mapGen.get_img_obj())
 
-        self.sideBarRow = 0
+        self.sideBarRowCounter = 0
         self.sideBarWidth = 0
         self.sideBarFont = None
         self.mapGen = mapGen
 
-    def open(self, imgPath):
+    def open_file(self, imgPath):
         self.imgPath = imgPath
         self.img = Image.open(imgPath)
+
+        self.open(self.img)
+
+    def open(self, imgObj):
+        self.img = imgObj
         self.artist = ImageDraw.Draw(self.img)
 
     def show(self):
@@ -72,26 +73,23 @@ class Painter:
         self.img.close()
 
     def add_side_bar(self, sideBarWidth, backColor=0xFFFFFFFF):
-        newImgPath = self.imgPath + ".jpeg"
         width, height = self.img.size
 
+        # Create a new image wider, paste previous content and move to this new object
         result = Image.new(self.img.mode, (width + sideBarWidth, height), backColor)
         result.paste(self.img, (sideBarWidth - 1, 0))
-        result.save(newImgPath)
-        result.close()
+        self.img.close()
+        self.open(result)
 
         self.sideBarWidth = sideBarWidth
         self.sideBarHeight = height
         self.rowHeight = int(self.sideBarHeight / self.MAX_SIDEBAR_ROW)
-        self.yPadding = int(sideBarWidth * 0.05)
+        self.sideBarPadding = int(sideBarWidth * 0.01)
+        self.yPadding = self.sideBarPadding
         # [Space][marker of heigh][Space][Text]
-        self.xPadding = int(sideBarWidth * 0.01) + self.rowHeight + int(sideBarWidth * 0.01)
+        self.xPadding = self.sideBarPadding + self.rowHeight + self.sideBarPadding
         self.markerSize = self.rowHeight * 0.95
         self.sideBarFont = ImageFont.truetype('Arial.ttf', self.rowHeight)
-
-        # Reopen file
-        self.close()
-        self.open(newImgPath)
 
     def add_map_marker(self, markerPos, color, shape):
         x, y = self.mapGen.lon_lat_to_px(markerPos)
@@ -99,7 +97,6 @@ class Painter:
         # Don't forget the side bar on the left
         x = x + self.sideBarWidth
         self.add_icon_marker(x, y, color, shape)
-        pass
 
     def add_icon_marker(self, x, y, color, shape):
         outlineColor = "black"
@@ -149,13 +146,21 @@ class Painter:
             logger.error("Unknown shape for marker: \"{0}\"".format(shape))
             return
 
-    def add_side_bar_marker(self, row, color="blue", shape="circle"):
+    def add_side_bar_marker(self, row, color, shape):
         x = self.xPadding / 2
         y = self.yPadding + row * self.rowHeight + self.rowHeight / 2
 
         self.add_icon_marker(x, y, color, shape)
 
-    def add_legend_name(self, row, name, color="blue", shape="circle"):
+    def add_legend_title(self, text):
+        # Compute position
+        x = self.sideBarPadding
+        y = self.yPadding
+
+        # Add Label
+        self.artist.text((x, y), text, font=self.sideBarFont, fill=0x000000)
+
+    def add_legend_name(self, row, name, color, shape):
         # Compute position
         x = self.xPadding
         y = self.yPadding + self.rowHeight * row
@@ -166,20 +171,21 @@ class Painter:
         # Add the corresponding marker
         self.add_side_bar_marker(row, color, shape)
 
-    def add_marker(self, name, markerPos, color="blue", shape="circle"):
+    def add_marker(self, name, markerPos, color, shape):
         # Ignore bad positions
         if (markerPos == None):
             return
 
         # Check space left
-        if (self.sideBarRow >= self.MAX_SIDEBAR_ROW):
+        if (self.sideBarRowCounter >= self.MAX_SIDEBAR_ROW):
             logger.warning("No more space left in the side bar !")
             return
+        else:
+            self.sideBarRowCounter += 1
 
         # Add to sidebar
-        self.add_legend_name(self.sideBarRow, name, color, shape)
+        self.add_legend_name(self.sideBarRowCounter, name, color, shape)
         self.add_map_marker(markerPos, color, shape)
-        self.sideBarRow += 1
 
 class AmapMember:
     # =============
@@ -306,6 +312,10 @@ class MapGenerator:
     def render(self):
         # Save image to file
         self.image = self.map.render(center=self.center, zoom=self.zoomLevel)
+
+    # Get the image object of the rendered map
+    def get_img_obj(self):
+        return self.image
 
     # Save map to file
     def save(self, mapFileName):
@@ -519,19 +529,21 @@ class Amaping:
             mapSize=mapSize
         )
         mapGen.render()
-        mapGen.save(self.args["mapFilename"])
 
         # Reopend map with painter and sidebar
-        painter = Painter(self.args["mapFilename"], mapGen=mapGen)
+        painter = Painter(mapGen=mapGen)
 
         sideBarWidth = int(mapSize[0] / 3)
         painter.add_side_bar(sideBarWidth)
 
+        # Add title
+        painter.add_legend_title("Membres de l'AMAP Pétal :")
+
         # Add markers
         for member in self.amapMemberArray:
             painter.add_marker(member.get_display_name(), member.get_map_position(), member.get_color(), member.get_shape())
-        painter.save(self.args["mapFilename"] + ".jpg")
 
+        painter.save(self.args["mapFilename"])
         painter.show()
         painter.close()
 
