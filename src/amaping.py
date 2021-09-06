@@ -256,6 +256,7 @@ class AmapMember:
 
         # Do nothing if address is not set
         if ((self.address == "") or (self.postalCode == "") or (self.city == "")):
+            logger.error("Bad address specified for member {0}".format(self.get_display_address()))
             return self.get_map_position()
 
         # Get complete address
@@ -434,6 +435,9 @@ class Amaping:
         logger.debug("Found {0} rows in CSV file \"{1}\"".format(self.csvDataRowCount, self.args["csvFilename"]))
 
         if self.load_context() == -1:
+            # Open a report file to log what needs to be modified in DB
+            reportFile = open("report.txt", "w")
+
             # For each line in the CSV...
             for index, rowdata in data.iterrows():
                 member = AmapMember()
@@ -465,6 +469,7 @@ class Amaping:
                     member.set_address(rowdata['Adresse 2'])
                 else:
                     logger.warning("No address detected for member {0}".format(member.get_display_name()))
+                    reportFile.write("Pas d'adresse pour {0}\n".format(member.get_display_name()))
                     continue
 
                 if (_isset(rowdata['Ville'])):
@@ -475,22 +480,36 @@ class Amaping:
 
                 # Get Geocode, ignore if it failed
                 if (member.req_map_position() == None):
+                    reportFile.write("Le membre {0} a une adresse non reconnue : \"{1}\"\n".format(
+                        member.get_display_name(),
+                        member.get_display_address()
+                    ))
                     continue
 
                 # Filter out member with far locations
                 if (not member.is_close_to(salleBrama.get_map_position())):
+                    logger.warning("Member {0} is too far away from {1}".format(
+                        member.get_display_name(),
+                        salleBrama.get_display_name())
+                    )
+                    reportFile.write("Le membre {0} est trop éloigné de {1} pour être affiché\n".format(
+                        member.get_display_name(),
+                        salleBrama.get_display_name()
+                    ))
                     continue
 
                 # Add member to output array
                 self.amapMemberArray.append(member)
 
-            # DEBUG - Keep only a few members for tests
-            # self.amapMemberArray = self.amapMemberArray[0:2]
 
             # Check remove members
             self.removeMemberCount = self.csvDataRowCount - len(self.amapMemberArray)
             if (self.removeMemberCount > 0):
                 logger.warning("{0} members will not be on the map because of above warnings/errors !".format(self.removeMemberCount))
+                reportFile.write("{0} membre(s) nécessite de l'attention\n".format(self.removeMemberCount))
+
+            # Close the report file, we don't need it anymore
+            reportFile.close()
 
             # Save context to speed up latter execution
             self.save_context()
