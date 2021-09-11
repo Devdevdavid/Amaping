@@ -6,7 +6,7 @@
 
 import geojson        # To build GeoJSON files, can be imported on FramaCarte
 
-# FramaCarte won't recognized the shapes used in Ammaping so we need to convert them to icons
+# FramaCarte won't recognized the shapes used in Amaping so we need to convert them to icons
 # Some icons are made available by FramaCarte
 def convert_icon(shape):
 	baseUrl = "/uploads/pictogram/"
@@ -48,12 +48,18 @@ class Collection:
 		return self.name
 
 	def add_marker(self, name, pos, color, shape, description = ""):
+		# Use Defaut icon for home point (Salle Brama for exemple)
+		if shape == "home":
+			iconClass = "Default"
+		else:
+			iconClass = "Drop"
+
 		properties = {
 			"name": name,
 			"description": description,
 			"_umap_options": {
 				"color": color,
-				"iconClass": "Drop",
+				"iconClass": iconClass,
 				"iconUrl": convert_icon(shape)
 			}
 		}
