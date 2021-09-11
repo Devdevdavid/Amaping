@@ -19,6 +19,7 @@ from PIL import ImageDraw                       # Used to draw text and forms on
 from PIL import ImageFont                       # Used to access text fonts
 import pickle                                   # Used to load/save context an speedup developpement
 import math                                     # For Pi constant
+import framacarte                               # To generate geojson files
 
 # Constants
 APP_NAME = "Amaping"
@@ -103,7 +104,7 @@ class Painter:
         outlineColor = "black"
         r = self.markerSize / 2
 
-        if (shape == "circle"):
+        if (shape == "circle" or shape == "home"):
             r = r * 0.90
             self.artist.ellipse((x-r, y-r, x+r, y+r), fill=color, outline=outlineColor)
         elif (shape == "rectangle"):
@@ -382,6 +383,8 @@ class Amaping:
         # Check arguments
         parser = argparse.ArgumentParser(description=APP_DESC)
         parser.add_argument('-v', '--verbose', help='enable verbose logs', default=False, action='store_true')
+        parser.add_argument('-j', '--geojson', default=False, dest="geojson", help='enable geojson file generation', action='store_true')
+        parser.add_argument('-p', '--png', default=False, dest="png", help='enable PNG file generation', action='store_true')
         parser.add_argument('-c', '--csv', default=self.DEFAULT_CSV_FILENAME, dest="csvFilename", help='specify CSV data file', type=str)
         parser.add_argument('-s', '--separator', default=self.DEFAULT_CSV_SEPARATOR, dest="csvSeparator", help='specify CSV column speparator', type=str)
         parser.add_argument('-o', '--output', default=self.DEFAULT_OUTPUT_MAP_NAME, dest="mapFilename", help='specify a map filename', type=str)
@@ -394,6 +397,9 @@ class Amaping:
         # Handle args
         if self.args["verbose"]:
             logger.setLevel(logging.DEBUG)
+
+        if not self.args["png"] and not self.args["geojson"]:
+            raise RuntimeError("At least one type of file generation is needed, use -j or -p !")
 
         # See https://wiki.openstreetmap.org/wiki/Zoom_levels
         # 20 might not be available everywhere
@@ -516,9 +522,6 @@ class Amaping:
         else:
             logger.info("Using cached context file")
 
-        # Prepend Salle Brama to the member list in order to be drawn as all other members
-        self.amapMemberArray.insert(0, salleBrama)
-
         # Define color and shape for each members
         colorIndex = 0
         shapeIndex = 0
@@ -540,34 +543,76 @@ class Amaping:
                     shapeIndex = 0
                     logger.warning("All Color/Shape combo have been used !")
 
-        # Genarate map
-        mapSize = tuple(map(int, self.args["mapSize"].split('x')))
-        mapGen = MapGenerator(
-            center=salleBrama.get_map_position(),
-            zoomLevel=self.args["zoomLevel"],
-            mapSize=mapSize
-        )
-        mapGen.render()
+        # Prepend Salle Brama to the member list in order to be drawn as all other members
+        salleBrama.set_marker("red", "home")
+        self.amapMemberArray.insert(0, salleBrama)
 
-        # Reopend map with painter and sidebar
-        painter = Painter(mapGen=mapGen)
+        # ========================
+        #           GEOJSON
+        # ========================
 
-        sideBarWidth = int(mapSize[0] / 3)
-        painter.add_side_bar(sideBarWidth)
+        if self.args["geojson"]:
+            logger.info("Generating GeoJSON file...")
+            amapBrama = framacarte.Collection("Brama")
+            for member in self.amapMemberArray:
+                amapBrama.add_marker(
+                    member.get_display_name(),
+                    member.get_map_position(),
+                    member.get_color(),
+                    member.get_shape(),
+                    member.get_display_address()
+                )
+            amapBrama.write_file()
 
-        # Add title
-        painter.add_legend_title("{0} membres de l'AMAP Pétal :".format(len(self.amapMemberArray)))
+        # ========================
+        #           PNG
+        # ========================
 
-        # Add markers
-        logger.info("Adding markers...")
-        for member in self.amapMemberArray:
-            painter.add_marker(member.get_display_name(), member.get_map_position(), member.get_color(), member.get_shape())
+        if self.args["png"]:
+            logger.info("Generating PNG file...")
 
-        logger.info("Openning output file...")
-        painter.save(self.args["mapFilename"])
-        painter.show()
-        painter.close()
+            # Genarate map
+            mapSize = tuple(map(int, self.args["mapSize"].split('x')))
+            mapGen = MapGenerator(
+                center=salleBrama.get_map_position(),
+                zoomLevel=self.args["zoomLevel"],
+                mapSize=mapSize
+            )
+            mapGen.render()
 
+            # Reopend map with painter and sidebar
+            painter = Painter(mapGen=mapGen)
+
+            sideBarWidth = int(mapSize[0] / 3)
+            painter.add_side_bar(sideBarWidth)
+
+            # Add title
+            painter.add_legend_title("{0} membres de l'AMAP Pétal :".format(len(self.amapMemberArray)))
+
+            # Add markers
+            logger.info("Adding markers...")
+            for member in self.amapMemberArray:
+                painter.add_marker(
+                    member.get_display_name(),
+                    member.get_map_position(),
+                    member.get_color(),
+                    member.get_shape()
+                )
+
+            logger.info("Openning output file...")
+            painter.save(self.args["mapFilename"])
+            painter.show()
+            painter.close()
+
+        # ========================
+        #           DONE
+        # ========================
+
+        logger.info("Work done !")
+
+# ========================
+#       ENTRY POINT
+# ========================
 
 if __name__ == '__main__':
     # Logging

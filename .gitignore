@@ -4,3 +4,5 @@ src/*.jp*
 .DS_Store
 *.obj
 lib
+*.geojson
+*.txt
