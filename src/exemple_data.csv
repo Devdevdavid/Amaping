@@ -1,2 +1,2 @@
-"id";"Prénom";"Nom";"Prénom du·de la conjoint·e";"Nom du·de la conjoint·e";"Ville";"Code postal";"Adresse 1";"Adresse 2";"Email";"Téléphone";"Email du·de la conjoint·e";"Téléphone du·de la conjoint·e"
-"1";"George";"DUPONT";"Michelle";"DUPONT";"Talence";"33400";"Espace Xavier Arnozan, Rue du Professeur Arnozan";"";"georgedupont@example.com";"06 00 00 00 00";"michelledupont@example.com";"06 00 00 00 00"
+"Adresse 1";"Adresse 2";"Ville";"Email";"Email partenaire";"Prénom";"Prénom partenaire";"id";"Nom";"Nom partenaire";"Téléphone";"Téléphone partenaire";"Code postal"
+"1 rue Albert Doré";"";"Paris";"albert.doré@gmail.net";"";"Albert";"";"1";"DORE";"";"06 00 00 00 00";"";"75000"

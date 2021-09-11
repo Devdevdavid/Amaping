@@ -16,12 +16,18 @@ def init(name):
 	logging.basicConfig(format='[%(levelname)s] %(message)s', level=logging.INFO)
 	logger = logging.getLogger(name)
 
+def setLevelDebug():
+	logger.setLevel(logging.DEBUG)
+
 def error(msg):
-	logger.info(msg)
+	logger.error(msg)
+
+def warning(msg):
+	logger.warning(msg)
 
 def info(msg):
 	logger.info(msg)
 
 def debug(msg):
-	logger.info(msg)
+	logger.debug(msg)
 

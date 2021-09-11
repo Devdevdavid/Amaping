@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # Author  : David DEVANT
 # Desc    : See APP_DESC :)
-# File    : amaping.py
+# File    : Amaping.py
 # Date    : July 4th, 2021
 # Version : 1.0.0
 
@@ -16,7 +16,7 @@ import pickle                                   # Used to load/save context an s
 from Painter import Painter
 from MapGenerator import MapGenerator
 import Logger
-import framacarte                               # To generate geojson files
+import Framacarte                               # To generate geojson files
 from AmapMember import AmapMember               # Define a member
 
 # Constants
@@ -85,7 +85,7 @@ class Amaping:
 
         # Handle args
         if self.args["verbose"]:
-            Logger.setLevel(logging.DEBUG)
+            Logger.setLevelDebug()
 
         if not self.args["png"] and not self.args["geojson"]:
             raise RuntimeError("At least one type of file generation is needed, use -j or -p !")
@@ -137,8 +137,6 @@ class Amaping:
             for index, rowdata in data.iterrows():
                 member = AmapMember()
 
-                time.sleep(1)
-
                 # Manage ID
                 if (_isset(rowdata['id'])):
                     member.set_id(rowdata['id'])
@@ -147,8 +145,8 @@ class Amaping:
                 if (_isset(rowdata['Nom']) and _isset(rowdata['Prénom'])):
                     member.add_people(rowdata['Nom'], rowdata['Prénom'])
 
-                if (_isset(rowdata['Nom du·de la conjoint·e']) and _isset(rowdata['Prénom du·de la conjoint·e'])):
-                    member.add_people(rowdata['Nom du·de la conjoint·e'], rowdata['Prénom du·de la conjoint·e'])
+                if (_isset(rowdata['Nom partenaire']) and _isset(rowdata['Prénom partenaire'])):
+                    member.add_people(rowdata['Nom partenaire'], rowdata['Prénom partenaire'])
 
                 # Manage address
                 if (_isset(rowdata['Adresse 1']) and _isset(rowdata['Adresse 2'])):
@@ -182,16 +180,20 @@ class Amaping:
                     continue
 
                 # Filter out member with far locations
-                if (not member.is_close_to(salleBrama.get_map_position())):
+                isCloseToHome = member.is_close_to(salleBrama.get_map_position())
+                member.set_close_to_home(isCloseToHome)
+                if (not isCloseToHome):
                     Logger.warning("Member {0} is too far away from {1}".format(
                         member.get_display_name(),
                         salleBrama.get_display_name())
                     )
-                    reportFile.write("Le membre {0} est trop éloigné de {1} pour être affiché\n".format(
+                    reportFile.write("Le membre {0} est trop éloigné de {1} pour être affiché sur la map PNG\n".format(
                         member.get_display_name(),
                         salleBrama.get_display_name()
                     ))
-                    continue
+
+                if (_isset(rowdata['Téléphone'])):
+                    member.set_phone(rowdata['Téléphone'])
 
                 # Add member to output array
                 self.amapMemberArray.append(member)
@@ -242,14 +244,23 @@ class Amaping:
 
         if self.args["geojson"]:
             Logger.info("Generating GeoJSON file...")
-            amapBrama = framacarte.Collection("Brama")
+
+            amapBrama = Framacarte.Collection("Brama")
             for member in self.amapMemberArray:
+                # Set description
+                description = member.get_display_address()
+
+                # Add phone if we got one
+                if (member.get_phone() != ""):
+                    description += "\nTel.: " + member.get_phone()
+
+                # Add the marker
                 amapBrama.add_marker(
                     member.get_display_name(),
                     member.get_map_position(),
                     member.get_color(),
                     member.get_shape(),
-                    member.get_display_address()
+                    description
                 )
             amapBrama.write_file()
 
@@ -281,6 +292,10 @@ class Amaping:
             # Add markers
             Logger.info("Adding markers...")
             for member in self.amapMemberArray:
+                # Ignore far members
+                if (not member.is_close_to_home()):
+                    continue
+
                 painter.add_marker(
                     member.get_display_name(),
                     member.get_map_position(),

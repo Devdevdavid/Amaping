@@ -5,7 +5,13 @@
 # Date    : Sept. 11th, 2021
 
 import Logger
+import re
 from geopy.distance import geodesic             # Mesure distances
+
+def format_phone(phone):
+    cleanPhone = re.sub('[^0-9]+', '', phone)
+    formattedPhone = re.sub("(\d)(?=(\d{2})+(?!\d))", r"\1.", "%s" % cleanPhone)
+    return formattedPhone
 
 class AmapMember:
     # =============
@@ -18,6 +24,8 @@ class AmapMember:
         self.coords = None
         self.color = "blue"
         self.shape = "circle"
+        self.phone = ""
+        self.isCloseToHome = False
 
     def set_id(self, id):
         self.id = id
@@ -68,6 +76,21 @@ class AmapMember:
     def get_shape(self):
         return self.shape
 
+    def set_phone(self, phone):
+        try:
+            self.phone = format_phone(phone)
+        except:
+            self.phone = phone
+
+    def get_phone(self):
+        return self.phone
+
+    def set_close_to_home(self, isClose):
+        self.isCloseToHome = isClose
+
+    def is_close_to_home(self):
+        return self.isCloseToHome
+
     # Return the (lat, lon) pin point location corresponding to the address
     def req_map_position(self, geoLocator):
         # Init in case of error
@@ -112,7 +135,7 @@ class AmapMember:
         # Compute the distance between the closePoint and the member location
         distanceKm = geodesic(self.get_map_position(), closePoint).km
 
-        Logger.debug("{0} is {1:.2} km away from close point".format(self.id, distanceKm))
+        Logger.debug("{0} is {1:.2} km away from close point".format(self.get_display_name(), distanceKm))
 
         # Return True if under threshold, False otherwise
         return distanceKm <= distanceThresholdKm
