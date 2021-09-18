@@ -195,6 +195,9 @@ class Amaping:
                 if (_isset(rowdata['Téléphone'])):
                     member.set_phone(rowdata['Téléphone'])
 
+                if (_isset(rowdata['Email'])):
+                    member.set_email(rowdata['Email'])
+
                 # Add member to output array
                 self.amapMemberArray.append(member)
 
@@ -250,9 +253,11 @@ class Amaping:
                 # Set description
                 description = member.get_display_address()
 
-                # Add phone if we got one
+                # Add info if we got one
                 if (member.get_phone() != ""):
-                    description += "\nTel.: " + member.get_phone()
+                    description += "\nTel. : " + member.get_phone()
+                if (member.get_email() != ""):
+                    description += "\nEmail: " + member.get_email()
 
                 # Add the marker
                 amapBrama.add_marker(

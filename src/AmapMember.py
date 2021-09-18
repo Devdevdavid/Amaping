@@ -26,6 +26,7 @@ class AmapMember:
         self.shape = "circle"
         self.phone = ""
         self.isCloseToHome = False
+        self.email = ""
 
     def set_id(self, id):
         self.id = id
@@ -84,6 +85,12 @@ class AmapMember:
 
     def get_phone(self):
         return self.phone
+
+    def set_email(self, email):
+        self.email = email
+
+    def get_email(self):
+        return self.email
 
     def set_close_to_home(self, isClose):
         self.isCloseToHome = isClose
