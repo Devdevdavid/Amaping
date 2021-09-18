@@ -42,6 +42,7 @@ class Amaping:
     # =============
 
     DEFAULT_CSV_FILENAME = 'amap_data.csv'
+    DEFAULT_ODS_FILENAME = '../ressources/Cagette_Adh_Brama-2021-09.ods'
     DEFAULT_CSV_SEPARATOR = ';'
     DEFAULT_OUTPUT_MAP_NAME = 'map.png'
     DEFAULT_MAP_ZOOM_LEVEL = 16
@@ -75,6 +76,7 @@ class Amaping:
         parser.add_argument('-j', '--geojson', default=False, dest="geojson", help='enable geojson file generation', action='store_true')
         parser.add_argument('-p', '--png', default=False, dest="png", help='enable PNG file generation', action='store_true')
         parser.add_argument('-c', '--csv', default=self.DEFAULT_CSV_FILENAME, dest="csvFilename", help='specify CSV data file', type=str)
+        parser.add_argument('-d', '--ods', default=self.DEFAULT_ODS_FILENAME, dest="odsFilename", help='specify ODS data file', type=str)
         parser.add_argument('-s', '--separator', default=self.DEFAULT_CSV_SEPARATOR, dest="csvSeparator", help='specify CSV column speparator', type=str)
         parser.add_argument('-o', '--output', default=self.DEFAULT_OUTPUT_MAP_NAME, dest="mapFilename", help='specify a map filename', type=str)
         parser.add_argument('-m', '--mapSize', default=self.DEFAULT_MAP_SIZE, dest="mapSize", help='specify a size in pixel for map generation (Ex: 1920x1080)', type=str)
@@ -109,6 +111,30 @@ class Amaping:
 
         self.amapMemberArray = pickle.load(f)
         return 0
+
+    def find_member_by(self, name1, name2):
+        # Simplify
+        name1 = name1.lower()
+        name2 = name2.lower()
+
+        # Find a match in our member list
+        for member in self.amapMemberArray:
+            displayName = member.get_display_name().lower()
+
+            # Check name 1
+            if (not name1 in displayName):
+                continue
+
+            #  Check name 2
+            if (name2 != ""):
+                if (not name2 in displayName):
+                    continue
+
+            # Return found member
+            return member
+
+        # Member not found
+        return None
 
     def run(self):
         # Load CSV file
@@ -216,26 +242,54 @@ class Amaping:
         else:
             Logger.info("Using cached context file")
 
+        # ========================
+        #        ODS FILE
+        # ========================
+
+        if (self.args["odsFilename"] != ""):
+            Logger.info("ODS - Reading file " +  self.args["odsFilename"])
+
+            odsContent = pandas.read_excel(self.args["odsFilename"], engine='odf', sheet_name="ENGAGEMENTS")
+
+            # Iterate over each lines of the file
+            for index, row in odsContent.iterrows():
+                nom1 = nom2 = ""
+
+                if (_isset(row['nom'])):
+                    nom1 = row['nom']
+                else:
+                    continue
+
+                if (_isset(row['nom conjoint'])):
+                    nom2 = row['nom conjoint']
+
+                # Find a match in our member list
+                matchMember = self.find_member_by(nom1, nom2)
+                if (matchMember == None):
+                    Logger.warning("Couldn't find a match for \"{0}\"".format(nom1))
+                    continue
+
+                # Add info
+                if (row['Légumes'] in ("hebdo", "pair", "impair")):
+                    matchMember.set_type_panier(row['Légumes'])
+
+        # ========================
+        #    COLORS AND SHAPES
+        # ========================
+
         # Define color and shape for each members
-        colorIndex = 0
-        shapeIndex = 0
-        markerColors = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "magenta"]
         markerShapes = ["star", "triangle", "sun", "circle", "rectangle", "cross"]
         for member in self.amapMemberArray:
-            member.set_marker(markerColors[colorIndex], markerShapes[shapeIndex])
+            color = "gray"
+            if (member.get_type_panier() != ""):
+                if (member.get_type_panier() == "hebdo"):
+                    color = "green"
+                elif (member.get_type_panier() == "pair"):
+                    color = "orange"
+                elif (member.get_type_panier() == "impair"):
+                    color = "blue"
 
-            # Move on
-            # Use next color
-            if (colorIndex < len(markerColors) - 1):
-                colorIndex += 1
-            else:
-                colorIndex = 0
-                # Use next shape when all color have been used
-                if (shapeIndex < len(markerShapes) - 1):
-                    shapeIndex += 1
-                else:
-                    shapeIndex = 0
-                    Logger.warning("All Color/Shape combo have been used !")
+            member.set_marker(color, "cross")
 
         # Prepend Salle Brama to the member list in order to be drawn as all other members
         salleBrama.set_marker("red", "home")
@@ -254,10 +308,12 @@ class Amaping:
                 description = member.get_display_address()
 
                 # Add info if we got one
+                if (member.get_type_panier() != ""):
+                    description += "\nLégumes : " + member.get_type_panier().capitalize()
                 if (member.get_phone() != ""):
                     description += "\nTel. : " + member.get_phone()
                 if (member.get_email() != ""):
-                    description += "\nEmail: " + member.get_email()
+                    description += "\nEmail : " + member.get_email()
 
                 # Add the marker
                 amapBrama.add_marker(
