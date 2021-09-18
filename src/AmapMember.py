@@ -28,6 +28,7 @@ class AmapMember:
         self.isCloseToHome = False
         self.email = ""
         self.typePanier = ""
+        self.role = ""
 
     def set_id(self, id):
         self.id = id
@@ -98,6 +99,12 @@ class AmapMember:
 
     def get_type_panier(self):
         return self.typePanier
+
+    def set_role(self, role):
+        self.role = role
+
+    def get_role(self):
+        return self.role
 
     def set_close_to_home(self, isClose):
         self.isCloseToHome = isClose

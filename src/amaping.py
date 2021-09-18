@@ -136,6 +136,22 @@ class Amaping:
         # Member not found
         return None
 
+    def find_member_from_row(self, row):
+        nom1 = nom2 = ""
+
+        if (_isset(row['nom'])):
+            nom1 = row['nom']
+        else:
+            return None
+
+        if (_isset(row['nom conjoint'])):
+            nom2 = row['nom conjoint']
+
+        # Find a match in our member list
+        matchMember = self.find_member_by(nom1, nom2)
+
+        return matchMember
+
     def run(self):
         # Load CSV file
         data = pandas.read_csv(self.args["csvFilename"], sep=self.args["csvSeparator"], header=0)
@@ -249,24 +265,30 @@ class Amaping:
         if (self.args["odsFilename"] != ""):
             Logger.info("ODS - Reading file " +  self.args["odsFilename"])
 
+            # Analyse 1st sheet
+            odsContent = pandas.read_excel(self.args["odsFilename"], engine='odf', sheet_name="COORDONNEES")
+
+            # Iterate over each lines of the file
+            for index, row in odsContent.iterrows():
+                matchMember = self.find_member_from_row(row)
+                if (matchMember == None):
+                    Logger.warning("Couldn't find a match for row {0} on sheet 1".format(index))
+                    continue
+
+                # Add info
+                if (_isset(row['Rôles'])):
+                    matchMember.set_role(row['Rôles'])
+                else:
+                    matchMember.set_role("Adhérent")
+
+            # Analyse 1st sheet
             odsContent = pandas.read_excel(self.args["odsFilename"], engine='odf', sheet_name="ENGAGEMENTS")
 
             # Iterate over each lines of the file
             for index, row in odsContent.iterrows():
-                nom1 = nom2 = ""
-
-                if (_isset(row['nom'])):
-                    nom1 = row['nom']
-                else:
-                    continue
-
-                if (_isset(row['nom conjoint'])):
-                    nom2 = row['nom conjoint']
-
-                # Find a match in our member list
-                matchMember = self.find_member_by(nom1, nom2)
+                matchMember = self.find_member_from_row(row)
                 if (matchMember == None):
-                    Logger.warning("Couldn't find a match for \"{0}\"".format(nom1))
+                    Logger.warning("Couldn't find a match for row {0} on sheet 2".format(index))
                     continue
 
                 # Add info
@@ -281,6 +303,7 @@ class Amaping:
         markerShapes = ["star", "triangle", "sun", "circle", "rectangle", "cross"]
         for member in self.amapMemberArray:
             color = "gray"
+            shape = "cross"
             if (member.get_type_panier() != ""):
                 if (member.get_type_panier() == "hebdo"):
                     color = "green"
@@ -289,7 +312,10 @@ class Amaping:
                 elif (member.get_type_panier() == "impair"):
                     color = "blue"
 
-            member.set_marker(color, "cross")
+            if (member.get_role() != "Adhérent"):
+                shape = "rectangle"
+
+            member.set_marker(color, shape)
 
         # Prepend Salle Brama to the member list in order to be drawn as all other members
         salleBrama.set_marker("red", "home")
@@ -314,6 +340,8 @@ class Amaping:
                     description += "\nTel. : " + member.get_phone()
                 if (member.get_email() != ""):
                     description += "\nEmail : " + member.get_email()
+                if (member.get_role() != "Adhérent"):
+                    description += "\nRôle : " + member.get_role()
 
                 # Add the marker
                 amapBrama.add_marker(
