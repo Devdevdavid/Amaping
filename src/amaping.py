@@ -41,10 +41,10 @@ class Amaping:
     # CONSTANTS
     # =============
 
-    DEFAULT_CSV_FILENAME = 'amap_data.csv'
-    DEFAULT_ODS_FILENAME = '../ressources/Cagette_Adh_Brama-2021-09.ods'
+    DEFAULT_CSV_FILENAME = './ressources/amap_data.csv'
+    DEFAULT_ODS_FILENAME = './ressources/Cagette_Adh_Brama-2021-09.ods'
     DEFAULT_CSV_SEPARATOR = ';'
-    DEFAULT_OUTPUT_MAP_NAME = 'map.png'
+    DEFAULT_OUTPUT_MAP_NAME = './output/map.png'
     DEFAULT_MAP_ZOOM_LEVEL = 16
     DEFAULT_MAP_SIZE = "4080x4080"
     AMAP_ADDRESS = "Salle Brama, Avenue Sainte-Marie"
@@ -98,13 +98,13 @@ class Amaping:
             raise RuntimeError("Zoom level must be in range [0; 20]")
 
     def save_context(self):
-        f = open('amapMemberArray.obj', 'wb')
+        f = open('./output/amapMemberArray.obj', 'wb')
         pickle.dump(self.amapMemberArray, f)
         Logger.debug("Saving context to file")
 
     def load_context(self):
         try:
-            f = open('amapMemberArray.obj', 'rb')
+            f = open('./output/amapMemberArray.obj', 'rb')
         except Exception as e:
             Logger.info("There is no context to load")
             return -1
@@ -112,40 +112,42 @@ class Amaping:
         self.amapMemberArray = pickle.load(f)
         return 0
 
-    def find_member_by(self, name1, name2):
-        # Simplify
-        name1 = name1.lower()
-        name2 = name2.lower()
+    def open_ods_sheet(self, odsFile, sheetName):
+        Logger.info("ODS - Reading sheet " +  sheetName)
+        return pandas.read_excel(odsFile, engine='odf', sheet_name=sheetName)
 
+    def find_member_by(self, name1, name2):
         # Find a match in our member list
         for member in self.amapMemberArray:
             displayName = member.get_display_name().lower()
 
             # Check name 1
-            if (not name1 in displayName):
+            if (not name1.lower() in displayName):
                 continue
 
             #  Check name 2
             if (name2 != ""):
-                if (not name2 in displayName):
+                if (not name2.lower() in displayName):
                     continue
 
             # Return found member
             return member
 
         # Member not found
+        Logger.warning("Couldn't find a match for {0}/{1}".format(name1, name2))
         return None
 
-    def find_member_from_row(self, row):
+    def find_member_from_row(self, row, index):
         nom1 = nom2 = ""
 
         if (_isset(row['nom'])):
-            nom1 = row['nom']
+            nom1 = row['nom'].replace(" ", "")
         else:
+            Logger.debug("Couldn't find a match for row {0}".format(index))
             return None
 
         if (_isset(row['nom conjoint'])):
-            nom2 = row['nom conjoint']
+            nom2 = row['nom conjoint'].replace(" ", "")
 
         # Find a match in our member list
         matchMember = self.find_member_by(nom1, nom2)
@@ -173,7 +175,7 @@ class Amaping:
 
         if self.load_context() == -1:
             # Open a report file to log what needs to be modified in DB
-            reportFile = open("report.txt", "w")
+            reportFile = open("./output/report.txt", "w")
 
             # For each line in the CSV...
             for index, rowdata in data.iterrows():
@@ -266,13 +268,12 @@ class Amaping:
             Logger.info("ODS - Reading file " +  self.args["odsFilename"])
 
             # Analyse 1st sheet
-            odsContent = pandas.read_excel(self.args["odsFilename"], engine='odf', sheet_name="COORDONNEES")
+            odsContent = self.open_ods_sheet(self.args["odsFilename"], "COORDONNEES")
 
             # Iterate over each lines of the file
             for index, row in odsContent.iterrows():
-                matchMember = self.find_member_from_row(row)
+                matchMember = self.find_member_from_row(row, index)
                 if (matchMember == None):
-                    Logger.warning("Couldn't find a match for row {0} on sheet 1".format(index))
                     continue
 
                 # Add info
@@ -282,13 +283,12 @@ class Amaping:
                     matchMember.set_role("Adhérent")
 
             # Analyse 1st sheet
-            odsContent = pandas.read_excel(self.args["odsFilename"], engine='odf', sheet_name="ENGAGEMENTS")
+            odsContent = self.open_ods_sheet(self.args["odsFilename"], "ENGAGEMENTS")
 
             # Iterate over each lines of the file
             for index, row in odsContent.iterrows():
-                matchMember = self.find_member_from_row(row)
+                matchMember = self.find_member_from_row(row, index)
                 if (matchMember == None):
-                    Logger.warning("Couldn't find a match for row {0} on sheet 2".format(index))
                     continue
 
                 # Add info

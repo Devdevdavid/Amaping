@@ -74,7 +74,7 @@ class Collection:
 	def write_file(self):
 		collection = geojson.FeatureCollection(self.featuresList)
 		dump = geojson.dumps(collection)
-		filename = "FramaCarte_" + self.get_name() + ".geojson"
+		filename = "./output/FramaCarte_" + self.get_name() + ".geojson"
 
 		outputFile = open(filename, "w")
 		outputFile.write(dump)

@@ -1,8 +1,9 @@
-src/amap_data.csv
-src/*.png
-src/*.jp*
+ressources/amap_data.csv
+output/*.png
+output/*.jp*
 .DS_Store
 *.obj
 lib
 *.geojson
 *.txt
+*.ods
