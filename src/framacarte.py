@@ -71,15 +71,64 @@ class Collection:
 
 		self.featuresList.append(newFeature)
 
-	def write_file(self):
+	def get_json_obj(self):
 		collection = geojson.FeatureCollection(self.featuresList)
-		dump = geojson.dumps(collection)
-		filename = "./output/FramaCarte_" + self.get_name() + ".geojson"
+		return collection
+
+class UMap:
+	def __init__(self, name):
+		self.name = name
+		self.umapContent = {
+		  "type": "umap",
+		  "uri": "",
+		  "properties": {
+		    "easing": True,
+		    "embedControl": True,
+		    "fullscreenControl": True,
+		    "searchControl": True,
+		    "datalayersControl": True,
+		    "zoomControl": True,
+		    "slideshow": {},
+		    "captionBar": False,
+		    "limitBounds": {},
+		    "tilelayer": {},
+		    "licence": "",
+		    "description": "",
+		    "name": name,
+		    "displayPopupFooter": False,
+		    "miniMap": False,
+		    "moreControl": True,
+		    "scaleControl": True,
+		    "scrollWheelZoom": True,
+		    "zoom": 14
+		  },
+		  "geometry": {
+		    "type": "Point",
+		    "coordinates": [
+		      -0.5893993377685548,
+		      44.81928998732381
+		    ]
+		  },
+		  "layers": []
+		}
+
+	def add_collection(self, collection):
+		layer = collection.get_json_obj()
+		layer["_umap_options"] = {
+	        "displayOnLoad": True,
+	        "browsable": True,
+	        "remoteData": {},
+	        "name": collection.get_name()
+	    }
+		self.umapContent["layers"].append(layer)
+
+	def write_file(self):
+		dump = geojson.dumps(self.umapContent, indent=2)
+		filename = "./output/FramaCarte_" + self.name + ".umap"
 
 		outputFile = open(filename, "w")
 		outputFile.write(dump)
 		outputFile.close()
-
 
 
 

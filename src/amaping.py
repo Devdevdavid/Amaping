@@ -16,7 +16,7 @@ import pickle                                   # Used to load/save context an s
 from Painter import Painter
 from MapGenerator import MapGenerator
 import Logger
-import Framacarte                               # To generate geojson files
+import Framacarte                               # To generate umap files
 from AmapMember import AmapMember               # Define a member
 
 # Constants
@@ -73,7 +73,7 @@ class Amaping:
         # Check arguments
         parser = argparse.ArgumentParser(description=APP_DESC)
         parser.add_argument('-v', '--verbose', help='enable verbose logs', default=False, action='store_true')
-        parser.add_argument('-j', '--geojson', default=False, dest="geojson", help='enable geojson file generation', action='store_true')
+        parser.add_argument('-u', '--umap', default=False, dest="umap", help='enable umap file generation', action='store_true')
         parser.add_argument('-p', '--png', default=False, dest="png", help='enable PNG file generation', action='store_true')
         parser.add_argument('-c', '--csv', default=self.DEFAULT_CSV_FILENAME, dest="csvFilename", help='specify CSV data file', type=str)
         parser.add_argument('-d', '--ods', default=self.DEFAULT_ODS_FILENAME, dest="odsFilename", help='specify ODS data file', type=str)
@@ -89,8 +89,8 @@ class Amaping:
         if self.args["verbose"]:
             Logger.setLevelDebug()
 
-        if not self.args["png"] and not self.args["geojson"]:
-            raise RuntimeError("At least one type of file generation is needed, use -j or -p !")
+        if not self.args["png"] and not self.args["umap"]:
+            raise RuntimeError("At least one type of file generation is needed, use -u or -p !")
 
         # See https://wiki.openstreetmap.org/wiki/Zoom_levels
         # 20 might not be available everywhere
@@ -185,12 +185,20 @@ class Amaping:
                 if (_isset(rowdata['id'])):
                     member.set_id(rowdata['id'])
 
-                # Manage names
-                if (_isset(rowdata['Nom']) and _isset(rowdata['Prénom'])):
-                    member.add_people(rowdata['Nom'], rowdata['Prénom'])
+                # Manage names (first name is optionnal)
+                if (_isset(rowdata['Nom'])):
+                    if (_isset(rowdata['Prénom'])):
+                        prenom = rowdata['Prénom']
+                    else:
+                        prenom = "Prénom"
+                    member.add_people(rowdata['Nom'], prenom)
 
-                if (_isset(rowdata['Nom partenaire']) and _isset(rowdata['Prénom partenaire'])):
-                    member.add_people(rowdata['Nom partenaire'], rowdata['Prénom partenaire'])
+                if (_isset(rowdata['Nom partenaire'])):
+                    if (_isset(rowdata['Prénom partenaire'])):
+                        prenom = rowdata['Prénom partenaire']
+                    else:
+                        prenom = "Prénom"
+                    member.add_people(rowdata['Nom partenaire'], prenom)
 
                 # Manage address
                 if (_isset(rowdata['Adresse 1']) and _isset(rowdata['Adresse 2'])):
@@ -312,9 +320,6 @@ class Amaping:
                 elif (member.get_type_panier() == "impair"):
                     color = "blue"
 
-            if (member.get_role() != "Adhérent"):
-                shape = "rectangle"
-
             member.set_marker(color, shape)
 
         # Prepend Salle Brama to the member list in order to be drawn as all other members
@@ -325,10 +330,10 @@ class Amaping:
         #           GEOJSON
         # ========================
 
-        if self.args["geojson"]:
-            Logger.info("Generating GeoJSON file...")
+        if self.args["umap"]:
+            Logger.info("Generating UMap file...")
 
-            amapBrama = Framacarte.Collection("Brama")
+            amapBramaCollection = {}
             for member in self.amapMemberArray:
                 # Set description
                 description = member.get_display_address()
@@ -340,18 +345,33 @@ class Amaping:
                     description += "\nTel. : " + member.get_phone()
                 if (member.get_email() != ""):
                     description += "\nEmail : " + member.get_email()
-                if (member.get_role() != "Adhérent"):
+                if (member.get_role() != "" and member.get_role() != "Adhérent"):
                     description += "\nRôle : " + member.get_role()
 
+                if (member.get_type_panier() != ""):
+                    collectionName = member.get_type_panier()
+                else:
+                    collectionName = "Autre"
+
+                # Create collection if needed
+                if (not collectionName in amapBramaCollection):
+                    amapBramaCollection[collectionName] = Framacarte.Collection(collectionName.capitalize())
+
+                curCollection = amapBramaCollection[collectionName]
+
                 # Add the marker
-                amapBrama.add_marker(
+                curCollection.add_marker(
                     member.get_display_name(),
                     member.get_map_position(),
                     member.get_color(),
                     member.get_shape(),
                     description
                 )
-            amapBrama.write_file()
+
+            umapObj = Framacarte.UMap("BRAMA")
+            for curCollection in amapBramaCollection:
+                umapObj.add_collection(amapBramaCollection[curCollection])
+            umapObj.write_file()
 
         # ========================
         #           PNG
