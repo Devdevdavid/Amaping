@@ -29,6 +29,7 @@ class AmapMember:
         self.email = ""
         self.typePanier = ""
         self.role = ""
+        self.isOnMap = True # Appear by default
 
     def set_id(self, id):
         self.id = id
@@ -51,7 +52,6 @@ class AmapMember:
             displayNames.append("{0} {1}".format(name, firstname))
 
         displayString =  ", ".join(str(x) for x in displayNames)
-        # displayString += " (id: {0})".format(self.id)
 
         return displayString
 
@@ -105,6 +105,12 @@ class AmapMember:
 
     def get_role(self):
         return self.role
+
+    def set_on_map(self, isOnMap):
+        self.isOnMap = isOnMap
+
+    def is_on_map(self):
+        return self.isOnMap
 
     def set_close_to_home(self, isClose):
         self.isCloseToHome = isClose

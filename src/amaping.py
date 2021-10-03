@@ -134,7 +134,11 @@ class Amaping:
             return member
 
         # Member not found
-        Logger.warning("Couldn't find a match for {0}/{1}".format(name1, name2))
+        msg = "Couldn't find a match in known members for {0}".format(name1)
+        if (name2 != ""):
+            msg += "/" + name2
+
+        Logger.warning(msg)
         return None
 
     def find_member_from_row(self, row, index):
@@ -258,7 +262,7 @@ class Amaping:
             self.removeMemberCount = self.csvDataRowCount - len(self.amapMemberArray)
             if (self.removeMemberCount > 0):
                 Logger.warning("{0} members will not be on the map because of above warnings/errors !".format(self.removeMemberCount))
-                reportFile.write("{0} membre(s) nécessite de l'attention\n".format(self.removeMemberCount))
+                reportFile.write("{0} membre(s) nécessite(nt) de l'attention\n".format(self.removeMemberCount))
 
             # Close the report file, we don't need it anymore
             reportFile.close()
@@ -289,6 +293,10 @@ class Amaping:
                     matchMember.set_role(row['Rôles'])
                 else:
                     matchMember.set_role("Adhérent")
+
+                if (_isset(row['Framacarte'])):
+                    isOnMap = row['Framacarte'].upper() == "OUI"
+                    matchMember.set_on_map(isOnMap)
 
             # Analyse 1st sheet
             odsContent = self.open_ods_sheet(self.args["odsFilename"], "ENGAGEMENTS")
@@ -337,6 +345,10 @@ class Amaping:
             for member in self.amapMemberArray:
                 # Set description
                 description = member.get_display_address()
+
+                if (member.is_on_map() == False):
+                    Logger.info("Member {0} don't want to appear on the map".format(member.get_display_name()))
+                    continue
 
                 # Add info if we got one
                 if (member.get_type_panier() != ""):
@@ -403,6 +415,9 @@ class Amaping:
             for member in self.amapMemberArray:
                 # Ignore far members
                 if (not member.is_close_to_home()):
+                    continue
+
+                if (member.is_on_map() == False):
                     continue
 
                 painter.add_marker(
